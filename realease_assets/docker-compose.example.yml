@@ -18,13 +18,13 @@ services:
 
   app:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     env_file:
-      - ../.env
+      - .env
     environment:
       PGHOST: postgres
       PGPORT: 5432
