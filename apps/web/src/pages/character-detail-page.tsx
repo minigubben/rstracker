@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartFrame } from "@/components/ui/chart";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+
+type DetailViewMode = "focused" | "all";
 
 function numberLabel(value: unknown) {
   if (typeof value === "number") {
@@ -17,13 +20,43 @@ function numberLabel(value: unknown) {
   return String(value ?? "");
 }
 
+function CompactMetricChart({
+  points,
+  valueKey,
+  stroke,
+}: {
+  points: Array<Record<string, string | number>>;
+  valueKey: string;
+  stroke: string;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={points}>
+        <Tooltip
+          contentStyle={{
+            background: "rgba(12,16,22,0.94)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "16px",
+          }}
+          formatter={(value) => numberLabel(value)}
+          labelFormatter={(value) => new Date(String(value)).toLocaleString()}
+        />
+        <Line type="monotone" dataKey={valueKey} stroke={stroke} strokeWidth={2.25} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function CharacterDetailPage() {
   const params = useParams();
   const characterId = Number(params.characterId);
+  const [viewMode, setViewMode] = useState<DetailViewMode>("all");
   const [skillMetricId, setSkillMetricId] = useState(0);
   const [skillValueField, setSkillValueField] = useState("xp");
   const [activityMetricId, setActivityMetricId] = useState(0);
   const [activityValueField, setActivityValueField] = useState("score");
+  const [metricSearch, setMetricSearch] = useState("");
+  const deferredMetricSearch = useDeferredValue(metricSearch);
 
   const detailQuery = useQuery({
     queryKey: ["character", characterId],
@@ -59,8 +92,26 @@ export function CharacterDetailPage() {
     enabled: Number.isFinite(characterId),
   });
 
+  const metricsGridQuery = useQuery({
+    queryKey: ["metrics-grid", characterId],
+    queryFn: () => api.getMetricsGrid(characterId),
+    enabled: Number.isFinite(characterId) && viewMode === "all",
+  });
+
   const skillOptions = metricsQuery.data?.skills ?? [];
   const activityOptions = metricsQuery.data?.activities ?? [];
+
+  const filteredGridMetrics = useMemo(() => {
+    const search = deferredMetricSearch.trim().toLowerCase();
+    const skills = (metricsGridQuery.data?.skills ?? []).filter((metric) =>
+      search === "" ? true : metric.name.toLowerCase().includes(search),
+    );
+    const activities = (metricsGridQuery.data?.activities ?? []).filter((metric) =>
+      search === "" ? true : metric.name.toLowerCase().includes(search),
+    );
+
+    return { skills, activities };
+  }, [deferredMetricSearch, metricsGridQuery.data]);
 
   useEffect(() => {
     if (skillOptions.length > 0 && skillMetricId === 0) {
@@ -113,9 +164,33 @@ export function CharacterDetailPage() {
                     : "never"}
                 </CardDescription>
               </div>
-              <Badge variant={character.syncStatus === "idle" ? "success" : "warning"}>
-                {character.syncStatus}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-full border border-white/10 bg-black/20 p-1">
+                  <button
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
+                      viewMode === "focused"
+                        ? "bg-white text-black"
+                        : "text-white/70 hover:text-white"
+                    }`}
+                    onClick={() => setViewMode("focused")}
+                    type="button"
+                  >
+                    Focused charts
+                  </button>
+                  <button
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
+                      viewMode === "all" ? "bg-white text-black" : "text-white/70 hover:text-white"
+                    }`}
+                    onClick={() => setViewMode("all")}
+                    type="button"
+                  >
+                    All metrics
+                  </button>
+                </div>
+                <Badge variant={character.syncStatus === "idle" ? "success" : "warning"}>
+                  {character.syncStatus}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
               <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
@@ -140,130 +215,239 @@ export function CharacterDetailPage() {
           </Card>
         </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Historical charts</CardTitle>
-            <CardDescription>Switch metrics and value fields without leaving the page.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ChartFrame
-              title="Skills"
-              actions={
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
-                    value={skillMetricId}
-                    onChange={(event) => setSkillMetricId(Number(event.target.value))}
-                  >
-                    {skillOptions.map((metric) => (
-                      <option key={metric.id} value={metric.id}>
-                        {metric.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
-                    value={skillValueField}
-                    onChange={(event) => setSkillValueField(event.target.value)}
-                  >
-                    <option value="xp">XP</option>
-                    <option value="level">Level</option>
-                    <option value="rank">Rank</option>
-                  </select>
-                </div>
-              }
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={skillSeriesQuery.data?.points ?? []}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-                  <XAxis
-                    dataKey="fetchedAt"
-                    tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
-                    stroke="rgba(255,255,255,0.45)"
-                  />
-                  <YAxis
-                    tickFormatter={(value) => numberLabel(value)}
-                    stroke="rgba(255,255,255,0.45)"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(12,16,22,0.94)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "16px",
-                    }}
-                    formatter={(value) => numberLabel(value)}
-                    labelFormatter={(value) => new Date(String(value)).toLocaleString()}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey={skillValueField}
-                    stroke="#f59e0b"
-                    strokeWidth={3}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartFrame>
+        {viewMode === "focused" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Historical charts</CardTitle>
+              <CardDescription>Switch metrics and value fields without leaving the page.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <ChartFrame
+                title="Skills"
+                actions={
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
+                      value={skillMetricId}
+                      onChange={(event) => setSkillMetricId(Number(event.target.value))}
+                    >
+                      {skillOptions.map((metric) => (
+                        <option key={metric.id} value={metric.id}>
+                          {metric.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
+                      value={skillValueField}
+                      onChange={(event) => setSkillValueField(event.target.value)}
+                    >
+                      <option value="xp">XP</option>
+                      <option value="level">Level</option>
+                      <option value="rank">Rank</option>
+                    </select>
+                  </div>
+                }
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={skillSeriesQuery.data?.points ?? []}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                    <XAxis
+                      dataKey="fetchedAt"
+                      tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
+                      stroke="rgba(255,255,255,0.45)"
+                    />
+                    <YAxis
+                      tickFormatter={(value) => numberLabel(value)}
+                      stroke="rgba(255,255,255,0.45)"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "rgba(12,16,22,0.94)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "16px",
+                      }}
+                      formatter={(value) => numberLabel(value)}
+                      labelFormatter={(value) => new Date(String(value)).toLocaleString()}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={skillValueField}
+                      stroke="#f59e0b"
+                      strokeWidth={3}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartFrame>
 
-            <ChartFrame
-              title="Activities"
-              actions={
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
-                    value={activityMetricId}
-                    onChange={(event) => setActivityMetricId(Number(event.target.value))}
-                  >
-                    {activityOptions.map((metric) => (
-                      <option key={metric.id} value={metric.id}>
-                        {metric.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
-                    value={activityValueField}
-                    onChange={(event) => setActivityValueField(event.target.value)}
-                  >
-                    <option value="score">Score</option>
-                    <option value="rank">Rank</option>
-                  </select>
+              <ChartFrame
+                title="Activities"
+                actions={
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
+                      value={activityMetricId}
+                      onChange={(event) => setActivityMetricId(Number(event.target.value))}
+                    >
+                      {activityOptions.map((metric) => (
+                        <option key={metric.id} value={metric.id}>
+                          {metric.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
+                      value={activityValueField}
+                      onChange={(event) => setActivityValueField(event.target.value)}
+                    >
+                      <option value="score">Score</option>
+                      <option value="rank">Rank</option>
+                    </select>
+                  </div>
+                }
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={activitySeriesQuery.data?.points ?? []}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                    <XAxis
+                      dataKey="fetchedAt"
+                      tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
+                      stroke="rgba(255,255,255,0.45)"
+                    />
+                    <YAxis
+                      tickFormatter={(value) => numberLabel(value)}
+                      stroke="rgba(255,255,255,0.45)"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "rgba(12,16,22,0.94)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: "16px",
+                      }}
+                      formatter={(value) => numberLabel(value)}
+                      labelFormatter={(value) => new Date(String(value)).toLocaleString()}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={activityValueField}
+                      stroke="#38bdf8"
+                      strokeWidth={3}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartFrame>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <CardTitle>All metrics</CardTitle>
+                <CardDescription>
+                  Compact graphs for every skill and boss/activity metric. Search to narrow the list.
+                </CardDescription>
+              </div>
+              <Input
+                className="sm:max-w-sm"
+                placeholder="Search metrics or bosses"
+                value={metricSearch}
+                onChange={(event) => setMetricSearch(event.target.value)}
+              />
+            </CardHeader>
+            <CardContent className="space-y-8">
+              {metricsGridQuery.isLoading ? (
+                <div className="flex items-center gap-3 text-white/65">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Loading compact metric charts...
                 </div>
-              }
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activitySeriesQuery.data?.points ?? []}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-                  <XAxis
-                    dataKey="fetchedAt"
-                    tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
-                    stroke="rgba(255,255,255,0.45)"
-                  />
-                  <YAxis
-                    tickFormatter={(value) => numberLabel(value)}
-                    stroke="rgba(255,255,255,0.45)"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(12,16,22,0.94)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "16px",
-                    }}
-                    formatter={(value) => numberLabel(value)}
-                    labelFormatter={(value) => new Date(String(value)).toLocaleString()}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey={activityValueField}
-                    stroke="#38bdf8"
-                    strokeWidth={3}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartFrame>
-          </CardContent>
-        </Card>
+              ) : null}
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-sm uppercase tracking-[0.24em] text-white/55">Skills</h3>
+                  <p className="mt-1 text-sm text-white/55">
+                    Showing XP trends with latest level and rank.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredGridMetrics.skills.map((metric) => (
+                    <div
+                      key={`skill-${metric.id}`}
+                      className="rounded-[20px] border border-white/8 bg-black/20 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{metric.name}</p>
+                          <p className="mt-1 text-xs text-white/55">
+                            Level {metric.latestLevel} • Rank {numberLabel(metric.latestRank)}
+                          </p>
+                        </div>
+                        <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">XP</p>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        {numberLabel(metric.latestXp)}
+                      </p>
+                      <div className="mt-3 h-20">
+                        <CompactMetricChart
+                          points={metric.points}
+                          valueKey="xp"
+                          stroke="#f59e0b"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-sm uppercase tracking-[0.24em] text-white/55">Activities</h3>
+                  <p className="mt-1 text-sm text-white/55">
+                    Showing score trends with the latest rank.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredGridMetrics.activities.map((metric) => (
+                    <div
+                      key={`activity-${metric.id}`}
+                      className="rounded-[20px] border border-white/8 bg-black/20 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{metric.name}</p>
+                          <p className="mt-1 text-xs text-white/55">
+                            Rank {numberLabel(metric.latestRank)}
+                          </p>
+                        </div>
+                        <p className="text-xs uppercase tracking-[0.24em] text-sky-200/80">Score</p>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-white">
+                        {numberLabel(metric.latestScore)}
+                      </p>
+                      <div className="mt-3 h-20">
+                        <CompactMetricChart
+                          points={metric.points}
+                          valueKey="score"
+                          stroke="#38bdf8"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {!metricsGridQuery.isLoading &&
+              filteredGridMetrics.skills.length === 0 &&
+              filteredGridMetrics.activities.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-white/12 bg-black/20 p-10 text-center text-white/60">
+                  No metrics matched that search.
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

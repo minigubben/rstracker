@@ -20,6 +20,32 @@ export type CharacterMetric = {
   name: string;
 };
 
+export type MetricGridSkill = {
+  id: number;
+  name: string;
+  latestLevel: number;
+  latestXp: number;
+  latestRank: number;
+  points: Array<{
+    fetchedAt: string;
+    rank: number;
+    level: number;
+    xp: number;
+  }>;
+};
+
+export type MetricGridActivity = {
+  id: number;
+  name: string;
+  latestScore: number;
+  latestRank: number;
+  points: Array<{
+    fetchedAt: string;
+    rank: number;
+    score: number;
+  }>;
+};
+
 export type CharacterDetail = {
   character: {
     id: number;
@@ -124,4 +150,9 @@ export const api = {
     }>(
       `/api/characters/${characterId}/timeseries?kind=${params.kind}&metricId=${params.metricId}&valueField=${params.valueField}`,
     ),
+  getMetricsGrid: (characterId: number) =>
+    request<{
+      skills: MetricGridSkill[];
+      activities: MetricGridActivity[];
+    }>(`/api/characters/${characterId}/metrics-grid`),
 };

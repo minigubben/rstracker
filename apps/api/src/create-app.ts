@@ -23,6 +23,7 @@ import { normalizeCharacterName, normalizeUsername } from "./lib/normalize.js";
 import { fetchHiscores, OsrsNotFoundError } from "./lib/osrs.js";
 import {
   getCharacterDetail,
+  getMetricGridData,
   getCharacterSummaryForUser,
   getTimeseries,
   queueManualRefresh,
@@ -367,6 +368,26 @@ export function createApp(env: AppEnv): express.Express {
         valueField: parsed.data.valueField,
         points: rows,
       });
+    } catch (error) {
+      if (error instanceof Error && error.message === "FORBIDDEN") {
+        return response.status(404).json({ error: "Character not found" });
+      }
+
+      response.status(401).json({ error: "Not authenticated" });
+    }
+  });
+
+  app.get("/api/characters/:characterId/metrics-grid", async (request, response) => {
+    try {
+      const userId = requireUserId(request);
+      const characterId = Number.parseInt(request.params.characterId, 10);
+      if (Number.isNaN(characterId)) {
+        return response.status(400).json({ error: "Invalid character id" });
+      }
+
+      await ensureCharacterAccess(userId, characterId);
+      const gridData = await getMetricGridData(characterId);
+      response.json(gridData);
     } catch (error) {
       if (error instanceof Error && error.message === "FORBIDDEN") {
         return response.status(404).json({ error: "Character not found" });

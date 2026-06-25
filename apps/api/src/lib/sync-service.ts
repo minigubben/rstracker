@@ -481,3 +481,117 @@ export async function getTimeseries({
 
   return rows;
 }
+
+export async function getMetricGridData(characterId: number) {
+  const db = getDb();
+
+  const [skillRows, activityRows] = await Promise.all([
+    db
+      .select({
+        metricId: snapshotSkills.skillId,
+        name: snapshotSkills.skillName,
+        fetchedAt: snapshots.fetchedAt,
+        rank: snapshotSkills.rank,
+        level: snapshotSkills.level,
+        xp: snapshotSkills.xp,
+      })
+      .from(snapshotSkills)
+      .innerJoin(snapshots, eq(snapshotSkills.snapshotId, snapshots.id))
+      .where(eq(snapshots.characterId, characterId))
+      .orderBy(asc(snapshotSkills.skillId), asc(snapshots.fetchedAt)),
+    db
+      .select({
+        metricId: snapshotActivities.activityId,
+        name: snapshotActivities.activityName,
+        fetchedAt: snapshots.fetchedAt,
+        rank: snapshotActivities.rank,
+        score: snapshotActivities.score,
+      })
+      .from(snapshotActivities)
+      .innerJoin(snapshots, eq(snapshotActivities.snapshotId, snapshots.id))
+      .where(eq(snapshots.characterId, characterId))
+      .orderBy(asc(snapshotActivities.activityId), asc(snapshots.fetchedAt)),
+  ]);
+
+  const skills = new Map<
+    number,
+    {
+      id: number;
+      name: string;
+      latestLevel: number;
+      latestXp: number;
+      latestRank: number;
+      points: Array<{
+        fetchedAt: Date;
+        rank: number;
+        level: number;
+        xp: number;
+      }>;
+    }
+  >();
+
+  for (const row of skillRows) {
+    const current =
+      skills.get(row.metricId) ?? {
+        id: row.metricId,
+        name: row.name,
+        latestLevel: row.level,
+        latestXp: row.xp,
+        latestRank: row.rank,
+        points: [],
+      };
+
+    current.name = row.name;
+    current.latestLevel = row.level;
+    current.latestXp = row.xp;
+    current.latestRank = row.rank;
+    current.points.push({
+      fetchedAt: row.fetchedAt,
+      rank: row.rank,
+      level: row.level,
+      xp: row.xp,
+    });
+    skills.set(row.metricId, current);
+  }
+
+  const activities = new Map<
+    number,
+    {
+      id: number;
+      name: string;
+      latestScore: number;
+      latestRank: number;
+      points: Array<{
+        fetchedAt: Date;
+        rank: number;
+        score: number;
+      }>;
+    }
+  >();
+
+  for (const row of activityRows) {
+    const current =
+      activities.get(row.metricId) ?? {
+        id: row.metricId,
+        name: row.name,
+        latestScore: row.score,
+        latestRank: row.rank,
+        points: [],
+      };
+
+    current.name = row.name;
+    current.latestScore = row.score;
+    current.latestRank = row.rank;
+    current.points.push({
+      fetchedAt: row.fetchedAt,
+      rank: row.rank,
+      score: row.score,
+    });
+    activities.set(row.metricId, current);
+  }
+
+  return {
+    skills: [...skills.values()],
+    activities: [...activities.values()],
+  };
+}
