@@ -85,7 +85,7 @@ export function createApp(env: AppEnv): express.Express {
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: env.NODE_ENV === "production",
+        secure: env.COOKIE_SECURE ?? env.NODE_ENV === "production",
         maxAge: 30 * 24 * 60 * 60 * 1000,
       },
     }),
@@ -380,7 +380,7 @@ export function createApp(env: AppEnv): express.Express {
   const webDistDir = path.resolve(__dirname, "../../web/dist");
   app.use(express.static(webDistDir));
 
-  app.get("*", (request, response, next) => {
+  app.use((request, response, next) => {
     if (request.path.startsWith("/api/")) {
       return next();
     }

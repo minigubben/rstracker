@@ -10,6 +10,10 @@ const envSchema = z.object({
     .union([z.literal("0"), z.literal("1")])
     .optional()
     .transform((value) => value === "1"),
+  COOKIE_SECURE: z
+    .union([z.literal("0"), z.literal("1")])
+    .optional()
+    .transform((value) => value === undefined ? undefined : value === "1"),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
