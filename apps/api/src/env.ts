@@ -3,6 +3,7 @@ import { z } from "zod";
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(16),
+  HOST: z.string().min(1).default("0.0.0.0"),
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   SYNC_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
@@ -10,6 +11,10 @@ const envSchema = z.object({
     .union([z.literal("0"), z.literal("1")])
     .optional()
     .transform((value) => value === "1"),
+  TRUST_PROXY: z
+    .union([z.literal("0"), z.literal("1")])
+    .optional()
+    .transform((value) => value === undefined ? undefined : value === "1"),
   COOKIE_SECURE: z
     .union([z.literal("0"), z.literal("1")])
     .optional()

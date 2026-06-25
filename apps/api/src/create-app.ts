@@ -69,6 +69,9 @@ export function createApp(env: AppEnv): express.Express {
   const db = getDb();
 
   app.disable("x-powered-by");
+  if (env.TRUST_PROXY) {
+    app.set("trust proxy", 1);
+  }
   app.use(express.json());
 
   const PgStore = connectPgSimple(session);
@@ -80,6 +83,7 @@ export function createApp(env: AppEnv): express.Express {
         createTableIfMissing: false,
       }),
       secret: env.SESSION_SECRET,
+      proxy: env.TRUST_PROXY,
       resave: false,
       saveUninitialized: false,
       rolling: true,

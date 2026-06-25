@@ -22,8 +22,8 @@ async function main() {
     });
   }
 
-  const server = app.listen(env.PORT, () => {
-    console.log(`API listening on port ${env.PORT}`);
+  const server = app.listen(env.PORT, env.HOST, () => {
+    console.log(`API listening on ${env.HOST}:${env.PORT}`);
   });
 
   const shutdown = async () => {
