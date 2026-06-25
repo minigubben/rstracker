@@ -1,8 +1,16 @@
 services:
   postgres:
     image: postgres:17
-    env_file:
-      - ./.env.example
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rstracker}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -13,9 +21,12 @@ services:
       context: ..
       dockerfile: Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     env_file:
       - ./.env.example
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-rstracker}
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
 
