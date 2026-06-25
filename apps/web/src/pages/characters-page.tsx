@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { LoaderCircle, LogOut, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import {
@@ -179,16 +179,22 @@ export function CharactersPage() {
             {(charactersQuery.data?.items ?? []).map((character) => (
               <div
                 key={character.id}
-                className="grid gap-4 rounded-[24px] border border-white/8 bg-black/20 p-4 md:grid-cols-[1.2fr_0.7fr_0.7fr_auto]"
+                className="group grid cursor-pointer gap-4 rounded-[24px] border border-white/8 bg-black/20 p-4 transition-colors hover:border-white/16 hover:bg-black/30 md:grid-cols-[1.2fr_0.7fr_0.7fr_auto]"
+                onClick={() => navigate(`/characters/${character.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigate(`/characters/${character.id}`);
+                  }
+                }}
+                role="link"
+                tabIndex={0}
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <Link
-                      className="text-xl font-semibold text-white hover:text-amber-200"
-                      to={`/characters/${character.id}`}
-                    >
+                    <span className="text-xl font-semibold text-white transition-colors group-hover:text-amber-200">
                       {character.displayName}
-                    </Link>
+                    </span>
                     <Badge variant={statusVariant(character.syncStatus)}>{character.syncStatus}</Badge>
                   </div>
                   <p className="text-sm text-white/60">
@@ -219,7 +225,11 @@ export function CharactersPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 md:justify-end">
+                <div
+                  className="flex items-center gap-2 md:justify-end"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
                   <Button
                     variant="outline"
                     size="sm"
@@ -233,7 +243,15 @@ export function CharactersPage() {
                     variant="ghost"
                     size="sm"
                     disabled={removeMutation.isPending}
-                    onClick={() => removeMutation.mutate(character.id)}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Stop tracking ${character.displayName}? This removes it from your roster.`,
+                        )
+                      ) {
+                        removeMutation.mutate(character.id);
+                      }
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                     Remove
