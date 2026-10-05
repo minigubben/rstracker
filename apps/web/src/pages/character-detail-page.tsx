@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 
 type DetailViewMode = "focused" | "all";
+type SkillMetricDisplay = "level" | "xp";
 
 function numberLabel(value: unknown) {
   if (typeof value === "number") {
@@ -52,6 +53,7 @@ export function CharacterDetailPage() {
   const params = useParams();
   const characterId = Number(params.characterId);
   const [viewMode, setViewMode] = useState<DetailViewMode>("all");
+  const [skillMetricDisplay, setSkillMetricDisplay] = useState<SkillMetricDisplay>("xp");
   const [skillMetricId, setSkillMetricId] = useState(0);
   const [skillValueField, setSkillValueField] = useState("xp");
   const [activityMetricName, setActivityMetricName] = useState("");
@@ -350,12 +352,35 @@ export function CharacterDetailPage() {
                   Compact graphs for every skill and boss/activity metric. Search to narrow the list.
                 </CardDescription>
               </div>
-              <Input
-                className="sm:max-w-sm"
-                placeholder="Search metrics or bosses"
-                value={metricSearch}
-                onChange={(event) => setMetricSearch(event.target.value)}
-              />
+              <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                <div
+                  aria-label="Skill metric display"
+                  className="rounded-full border border-white/10 bg-black/20 p-1"
+                  role="group"
+                >
+                  {(["level", "xp"] as const).map((display) => (
+                    <button
+                      key={display}
+                      aria-pressed={skillMetricDisplay === display}
+                      className={`rounded-full px-4 py-2 text-sm capitalize transition-colors ${
+                        skillMetricDisplay === display
+                          ? "bg-white text-black"
+                          : "text-white/70 hover:text-white"
+                      }`}
+                      onClick={() => setSkillMetricDisplay(display)}
+                      type="button"
+                    >
+                      {display}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  className="sm:max-w-sm"
+                  placeholder="Search metrics or bosses"
+                  value={metricSearch}
+                  onChange={(event) => setMetricSearch(event.target.value)}
+                />
+              </div>
             </CardHeader>
             <CardContent className="space-y-8">
               {metricsGridQuery.isLoading ? (
@@ -369,7 +394,8 @@ export function CharacterDetailPage() {
                 <div>
                   <h3 className="text-sm uppercase tracking-[0.24em] text-white/55">Skills</h3>
                   <p className="mt-1 text-sm text-white/55">
-                    Showing XP trends with latest level and rank.
+                    Showing {skillMetricDisplay === "xp" ? "XP" : "level"} trends with the latest
+                    {skillMetricDisplay === "xp" ? " level" : " XP"} and rank.
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -382,18 +408,24 @@ export function CharacterDetailPage() {
                         <div>
                           <p className="text-sm font-semibold text-white">{metric.name}</p>
                           <p className="mt-1 text-xs text-white/55">
-                            Level {metric.latestLevel} • Rank {numberLabel(metric.latestRank)}
+                            {skillMetricDisplay === "xp"
+                              ? `Level ${metric.latestLevel} • Rank ${numberLabel(metric.latestRank)}`
+                              : `XP ${numberLabel(metric.latestXp)} • Rank ${numberLabel(metric.latestRank)}`}
                           </p>
                         </div>
-                        <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">XP</p>
+                        <p className="text-xs uppercase tracking-[0.24em] text-amber-200/80">
+                          {skillMetricDisplay}
+                        </p>
                       </div>
                       <p className="mt-3 text-lg font-semibold text-white">
-                        {numberLabel(metric.latestXp)}
+                        {numberLabel(
+                          skillMetricDisplay === "xp" ? metric.latestXp : metric.latestLevel,
+                        )}
                       </p>
                       <div className="mt-3 h-20">
                         <CompactMetricChart
                           points={metric.points}
-                          valueKey="xp"
+                          valueKey={skillMetricDisplay}
                           stroke="#f59e0b"
                         />
                       </div>
