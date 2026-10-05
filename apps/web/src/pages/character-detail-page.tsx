@@ -32,6 +32,7 @@ function CompactMetricChart({
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={points}>
+        <XAxis dataKey="fetchedAt" hide />
         <Tooltip
           contentStyle={{
             background: "rgba(12,16,22,0.94)",
@@ -53,7 +54,7 @@ export function CharacterDetailPage() {
   const [viewMode, setViewMode] = useState<DetailViewMode>("all");
   const [skillMetricId, setSkillMetricId] = useState(0);
   const [skillValueField, setSkillValueField] = useState("xp");
-  const [activityMetricId, setActivityMetricId] = useState(0);
+  const [activityMetricName, setActivityMetricName] = useState("");
   const [activityValueField, setActivityValueField] = useState("score");
   const [metricSearch, setMetricSearch] = useState("");
   const deferredMetricSearch = useDeferredValue(metricSearch);
@@ -82,14 +83,14 @@ export function CharacterDetailPage() {
   });
 
   const activitySeriesQuery = useQuery({
-    queryKey: ["timeseries", characterId, "activity", activityMetricId, activityValueField],
+    queryKey: ["timeseries", characterId, "activity", activityMetricName, activityValueField],
     queryFn: () =>
       api.getTimeseries(characterId, {
         kind: "activity",
-        metricId: activityMetricId,
+        metricName: activityMetricName,
         valueField: activityValueField,
       }),
-    enabled: Number.isFinite(characterId),
+    enabled: Number.isFinite(characterId) && activityMetricName !== "",
   });
 
   const metricsGridQuery = useQuery({
@@ -117,11 +118,11 @@ export function CharacterDetailPage() {
     if (skillOptions.length > 0 && skillMetricId === 0) {
       setSkillMetricId(skillOptions[0].id);
     }
-    if (activityOptions.length > 0 && activityMetricId === 0) {
+    if (activityOptions.length > 0 && activityMetricName === "") {
       const populated = detailQuery.data?.activities.find((item) => item.score > 0);
-      setActivityMetricId(populated?.activityId ?? activityOptions[0].id);
+      setActivityMetricName(populated?.activityName ?? activityOptions[0].name);
     }
-  }, [activityMetricId, activityOptions, detailQuery.data?.activities, skillMetricId, skillOptions]);
+  }, [activityMetricName, activityOptions, detailQuery.data?.activities, skillMetricId, skillOptions]);
 
   if (detailQuery.isLoading) {
     return (
@@ -287,11 +288,11 @@ export function CharacterDetailPage() {
                   <div className="flex flex-wrap gap-2">
                     <select
                       className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-sm"
-                      value={activityMetricId}
-                      onChange={(event) => setActivityMetricId(Number(event.target.value))}
+                      value={activityMetricName}
+                      onChange={(event) => setActivityMetricName(event.target.value)}
                     >
                       {activityOptions.map((metric) => (
-                        <option key={metric.id} value={metric.id}>
+                        <option key={metric.id} value={metric.name}>
                           {metric.name}
                         </option>
                       ))}

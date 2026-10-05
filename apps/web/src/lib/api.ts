@@ -142,13 +142,24 @@ export const api = {
     ),
   getTimeseries: (
     characterId: number,
-    params: { kind: "skill" | "activity"; metricId: number; valueField: string },
+    params: {
+      kind: "skill" | "activity";
+      metricId?: number;
+      metricName?: string;
+      valueField: string;
+    },
   ) =>
     request<{
       valueField: string;
       points: Array<Record<string, string | number>>;
     }>(
-      `/api/characters/${characterId}/timeseries?kind=${params.kind}&metricId=${params.metricId}&valueField=${params.valueField}`,
+      `/api/characters/${characterId}/timeseries?kind=${params.kind}${
+        params.metricId === undefined ? "" : `&metricId=${params.metricId}`
+      }${
+        params.metricName === undefined
+          ? ""
+          : `&metricName=${encodeURIComponent(params.metricName)}`
+      }&valueField=${params.valueField}`,
     ),
   getMetricsGrid: (characterId: number) =>
     request<{

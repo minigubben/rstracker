@@ -41,8 +41,25 @@ const createCharacterSchema = z.object({
 
 const timeseriesQuerySchema = z.object({
   kind: z.enum(["skill", "activity"]),
-  metricId: z.coerce.number().int().nonnegative(),
+  metricId: z.coerce.number().int().nonnegative().optional(),
+  metricName: z.string().trim().min(1).max(128).optional(),
   valueField: z.string().min(1),
+}).superRefine((value, context) => {
+  if (value.kind === "skill" && value.metricId === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["metricId"],
+      message: "A skill metric id is required",
+    });
+  }
+
+  if (value.kind === "activity" && !value.metricName) {
+    context.addIssue({
+      code: "custom",
+      path: ["metricName"],
+      message: "An activity metric name is required",
+    });
+  }
 });
 
 function requireUserId(request: express.Request) {
@@ -366,6 +383,7 @@ export function createApp(env: AppEnv): express.Express {
         characterId,
         kind: parsed.data.kind,
         metricId: parsed.data.metricId,
+        metricName: parsed.data.metricName,
       });
 
       response.json({

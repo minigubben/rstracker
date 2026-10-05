@@ -17,6 +17,54 @@ const RETRY_MS = 60 * 60 * 1000;
 
 type TriggerType = "initial_add" | "automatic" | "manual";
 
+type ActivityHistoryRow = {
+  metricId: number;
+  name: string;
+  fetchedAt: Date;
+  rank: number;
+  score: number;
+};
+
+export function groupActivityHistory(rows: ActivityHistoryRow[]) {
+  const activities = new Map<
+    string,
+    {
+      id: number;
+      name: string;
+      latestScore: number;
+      latestRank: number;
+      points: Array<{
+        fetchedAt: Date;
+        rank: number;
+        score: number;
+      }>;
+    }
+  >();
+
+  for (const row of rows) {
+    const current =
+      activities.get(row.name) ?? {
+        id: row.metricId,
+        name: row.name,
+        latestScore: row.score,
+        latestRank: row.rank,
+        points: [],
+      };
+
+    current.id = row.metricId;
+    current.latestScore = row.score;
+    current.latestRank = row.rank;
+    current.points.push({
+      fetchedAt: row.fetchedAt,
+      rank: row.rank,
+      score: row.score,
+    });
+    activities.set(row.name, current);
+  }
+
+  return [...activities.values()];
+}
+
 async function writeSnapshot({
   characterId,
   triggerType,
@@ -445,10 +493,12 @@ export async function getTimeseries({
   characterId,
   kind,
   metricId,
+  metricName,
 }: {
   characterId: number;
   kind: "skill" | "activity";
-  metricId: number;
+  metricId?: number;
+  metricName?: string;
 }) {
   const db = getDb();
 
@@ -462,7 +512,7 @@ export async function getTimeseries({
       })
       .from(snapshotSkills)
       .innerJoin(snapshots, eq(snapshotSkills.snapshotId, snapshots.id))
-      .where(and(eq(snapshots.characterId, characterId), eq(snapshotSkills.skillId, metricId)))
+      .where(and(eq(snapshots.characterId, characterId), eq(snapshotSkills.skillId, metricId!)))
       .orderBy(asc(snapshots.fetchedAt));
 
     return rows;
@@ -476,7 +526,12 @@ export async function getTimeseries({
     })
     .from(snapshotActivities)
     .innerJoin(snapshots, eq(snapshotActivities.snapshotId, snapshots.id))
-    .where(and(eq(snapshots.characterId, characterId), eq(snapshotActivities.activityId, metricId)))
+    .where(
+      and(
+        eq(snapshots.characterId, characterId),
+        eq(snapshotActivities.activityName, metricName!),
+      ),
+    )
     .orderBy(asc(snapshots.fetchedAt));
 
   return rows;
@@ -510,7 +565,7 @@ export async function getMetricGridData(characterId: number) {
       .from(snapshotActivities)
       .innerJoin(snapshots, eq(snapshotActivities.snapshotId, snapshots.id))
       .where(eq(snapshots.characterId, characterId))
-      .orderBy(asc(snapshotActivities.activityId), asc(snapshots.fetchedAt)),
+      .orderBy(asc(snapshotActivities.activityName), asc(snapshots.fetchedAt)),
   ]);
 
   const skills = new Map<
@@ -554,44 +609,8 @@ export async function getMetricGridData(characterId: number) {
     skills.set(row.metricId, current);
   }
 
-  const activities = new Map<
-    number,
-    {
-      id: number;
-      name: string;
-      latestScore: number;
-      latestRank: number;
-      points: Array<{
-        fetchedAt: Date;
-        rank: number;
-        score: number;
-      }>;
-    }
-  >();
-
-  for (const row of activityRows) {
-    const current =
-      activities.get(row.metricId) ?? {
-        id: row.metricId,
-        name: row.name,
-        latestScore: row.score,
-        latestRank: row.rank,
-        points: [],
-      };
-
-    current.name = row.name;
-    current.latestScore = row.score;
-    current.latestRank = row.rank;
-    current.points.push({
-      fetchedAt: row.fetchedAt,
-      rank: row.rank,
-      score: row.score,
-    });
-    activities.set(row.metricId, current);
-  }
-
   return {
     skills: [...skills.values()],
-    activities: [...activities.values()],
+    activities: groupActivityHistory(activityRows),
   };
 }
